@@ -5,61 +5,51 @@ import type {
 
 import type { Repository } from "../domain/post/repository.js";
 
-export function createPostRepository(): Repository {
-    const posts: Post[] = [
-        {
-            id: 1,
-            title: "JavaScript Basics",
-            content: "Introduction to JavaScript",
-            author: "Alex",
-            category: "programming"
-        },
-        {
-            id: 2,
-            title: "Node.js",
-            content: "Introduction to Node.js",
-            author: "John",
-            category: "programming"
-        },
-        {
-            id: 3,
-            title: "Express",
-            content: "Express framework",
-            author: "Anna",
-            category: "programming"
-        }
-    ];
+type PostQuery = {
+    where(filters: Partial<Post>): PostQuery;
+    limit(count: number): PostQuery;
+    all(): Promise<Post[]>;
+    first(): Promise<Post | null>;
+    create(data: CreatePostInput): Promise<Post>;
+};
 
+type Db = {
+    orm: {
+        public: {
+            Post: PostQuery;
+        };
+    };
+};
+
+export function createPostRepository(db: Db): Repository {
     return {
         async getAll(category?: string, take?: number): Promise<Post[]> {
-            let result = [...posts];
-
-            if (category) {
-                result = result.filter(
-                    (post) => post.category === category
-                );
-            }
+            let query = category
+                ? db.orm.public.Post.where({ category })
+                : db.orm.public.Post;
 
             if (take !== undefined) {
-                result = result.slice(0, take);
+                query = query.limit(take);
             }
 
-            return result;
+            return await query.all();
         },
 
         async getById(id: number): Promise<Post | undefined> {
-            return posts.find((post) => post.id === id);
+            const post = await db.orm.public.Post
+                .where({ id })
+                .first();
+
+            return post ?? undefined;
         },
 
         async addPost(data: CreatePostInput): Promise<Post> {
-            const newPost: Post = {
-                id: posts.length + 1,
-                ...data
-            };
-
-            posts.push(newPost);
-
-            return newPost;
+            return await db.orm.public.Post.create({
+                title: data.title,
+                content: data.content,
+                author: data.author,
+                category: data.category
+            });
         }
     };
 }
